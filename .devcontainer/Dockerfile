@@ -22,8 +22,8 @@ USER $USERNAME
 # Add user to video group to allow access to webcam
 RUN sudo usermod --append --groups video $USERNAME
 
-# Update all packages
-RUN sudo apt update && sudo apt upgrade -y
+RUN sudo apt-get update && \
+    for i in {1..5}; do sudo apt-get upgrade -y --fix-missing && break || sleep 15; done
 
 # Install Git
 RUN sudo apt install -y git
