@@ -58,6 +58,19 @@ RUN rosdep update
 RUN sudo apt-get install -y \
     python3-colcon-common-extensions
 
+# Install gazebo 
+RUN sudo apt-get install -y \
+    ros-humble-gazebo-ros-pkgs
+
+# Install Nav2
+RUN sudo apt-get install -y \
+    ros-${ROS_DISTRO}-navigation2 \
+    ros-${ROS_DISTRO}-nav2-bringup
+
+# Install rtabmap 
+RUN sudo apt-get install -y \
+    ros-${ROS_DISTRO}-rtabmap-ros
+
 
 # Source the ROS setup file
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
