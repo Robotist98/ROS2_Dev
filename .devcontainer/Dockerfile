@@ -4,7 +4,7 @@ FROM osrf/ros:humble-desktop
 ARG USERNAME=ubuntu
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
-ARG REPOSITORY_NAME=$(pwd)
+ARG REPOSITORY_NAME=ROS2_Dev
 
 RUN if ! id -u $USER_UID >/dev/null 2>&1; then \
         groupadd --gid $USER_GID $USERNAME && \
@@ -52,6 +52,8 @@ RUN sudo apt-get install -y \
     python3-pip \
     gedit
 
+RUN sudo apt install nano
+
 # Rosdep update
 RUN rosdep update
 
@@ -63,7 +65,7 @@ RUN sudo apt-get install -y \
     ros-humble-gazebo-ros-pkgs
 
 # Install Nav2
-RUN sudo apt-get install -y \
+RUN sudo apt install -y \
     ros-${ROS_DISTRO}-navigation2 \
     ros-${ROS_DISTRO}-nav2-bringup
 
