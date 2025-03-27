@@ -73,6 +73,16 @@ RUN sudo apt install -y \
 RUN sudo apt-get install -y \
     ros-${ROS_DISTRO}-rtabmap-ros
 
+# Install xacro 
+RUN sudo apt-get install -y \
+    ros-${ROS_DISTRO}-xacro
+
+
+RUN pip3 install -U \
+    pygame \
+    pyyaml \
+    numpy 
+
 
 # Source the ROS setup file
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
