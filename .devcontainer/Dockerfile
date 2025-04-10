@@ -1,5 +1,6 @@
 FROM osrf/ros:humble-desktop
 
+#works
 # Add ubuntu user with same UID and GID as your host system
 ARG USERNAME=ubuntu
 ARG USER_UID=1000
