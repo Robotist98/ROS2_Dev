@@ -41,11 +41,16 @@ async def receive_video(ws):
             msg = await asyncio.wait_for(ws.recv(), timeout=VIDEO_FRAME_TIMEOUT)
             msg = json.loads(msg)
 
-            if msg.get("type") == "video":
-                jpg = base64.b64decode(msg["data"])
-                img_array = np.frombuffer(jpg, dtype=np.uint8)
-                frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-                cv2.imshow("Jetson Stream", frame)
+            if msg.get("type") == "frames":
+                color_jpg = base64.b64decode(msg["color"])
+                color_img_array = np.frombuffer(color_jpg, dtype=np.uint8)
+                color_frame = cv2.imdecode(color_img_array, cv2.IMREAD_COLOR)
+                cv2.imshow("Jetson Stream", color_frame)
+
+                depth_jpg = base64.b64decode(msg["depth"])
+                depth_img_array = np.frombuffer(depth_jpg, dtype=np.uint8)
+                depth_frame = cv2.imdecode(depth_img_array, cv2.IMREAD_UNCHANGED)
+                cv2.imshow("Depth Stream", depth_frame)
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break

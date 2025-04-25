@@ -14,24 +14,37 @@ async def handle_client(websocket, path):
     pipeline = rs.pipeline()
     config = rs.config()
     config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
     pipeline.start(config)
+
+    align = rs.align(rs.stream.color)
 
     try:
         while True:
             # Get video frame from RealSense
             frames = pipeline.wait_for_frames()
-            color_frame = frames.get_color_frame()
-            if not color_frame:
+
+            align_frames = align.process(frames)  # Align depth to color
+            
+            color_frame = align_frames.get_color_frame()
+            depth_frame = align_frames.get_depth_frame()
+
+            if not color_frame or not depth_frame:
                 continue
 
-            frame = np.asanyarray(color_frame.get_data())
-            _, jpeg = cv2.imencode('.jpg', frame)
-            b64_frame = base64.b64encode(jpeg.tobytes()).decode('utf-8')
+            color_frame_np = np.asanyarray(color_frame.get_data())
+            _, jpeg_color = cv2.imencode('.jpg', color_frame_np)
+            b64_frame = base64.b64encode(jpeg_color.tobytes()).decode('utf-8')
 
-            # Send frame
+            color_depth_frame_np = cv2.applyColorMap(cv2.convertScaleAbs(np.asanyarray(depth_frame.get_data()), alpha=0.03), cv2.COLORMAP_JET)
+            _, jpeg_depth = cv2.imencode('.jpg', color_depth_frame_np)
+            b64_depth = base64.b64encode(jpeg_depth.tobytes()).decode('utf-8')
+
+            # Send both color and depth frames in a single message
             await websocket.send(json.dumps({
-                "type": "video",
-                "data": b64_frame
+                "type": "frames",
+                "color": b64_frame,
+                "depth": b64_depth
             }))
 
             # Try to receive controller input with timeout
