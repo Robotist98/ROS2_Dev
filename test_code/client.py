@@ -6,6 +6,7 @@ import cv2
 import json
 import numpy as np
 import base64
+import socket
 
 # Adjustable parameters
 CONTROL_SEND_RATE = 0.005  # 200 Hz
@@ -60,9 +61,20 @@ async def receive_video(ws):
             print(f"Error receiving video: {e}")
             break
 
+def get_ip_from_hostname(hostname):
+    try:
+        ip_address = socket.gethostbyname(hostname)
+        return ip_address
+    except socket.error as e:
+        return f"Error: {e}"
+
 # Main function
 async def main():
-    uri = "ws://user-mobilerig.local:8765"  # Replace if needed
+
+    hostname = "user-mobilerig"  # Replace with your hostname
+    port = 8765  # Port for the WebSocket server
+    ip_address = get_ip_from_hostname(hostname)
+    uri = f"ws://{ip_address}:{port}"  # Replace if needed
 
     pygame.init()
     pygame.joystick.init()

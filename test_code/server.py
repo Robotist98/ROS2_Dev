@@ -52,8 +52,14 @@ async def handle_client(websocket, path):
                 message = await asyncio.wait_for(websocket.recv(), timeout=0.001)
                 data = json.loads(message)
                 if data.get("type") == "control":
+
+                    # data["axes"] = [float(x) for x in data["axes"]]
+                    # data["buttons"] = [int(x) for x in data["buttons"]]
+                    axe1= [data["axes"][0]]  # Keep only the first axis
+                    axe2= [data["axes"][1]]
+
                     # Handle controller data here (log or use)
-                    print("Controller input:", data)
+                    print(f"Controller input: {axe1}, {axe2}")
             except asyncio.TimeoutError:
                 pass  # No control data this frame — just skip
 
