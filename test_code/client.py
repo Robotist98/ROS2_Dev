@@ -19,18 +19,25 @@ async def send_controls(ws, joystick):
 
     while True:
         pygame.event.pump()
+        
         axes = [joystick.get_axis(i) for i in range(joystick.get_numaxes())]
         buttons = [joystick.get_button(i) for i in range(joystick.get_numbuttons())]
 
+        # Debounce axes to avoid sending small insignificant changes
+        debounced_axes = [
+            round(axis, 2) if abs(axis - prev_axes[i]) > 0.01 else prev_axes[i]
+            for i, axis in enumerate(axes)
+        ]
+
         # Optionally send only when something changes (optional optimization)
-        if axes != prev_axes or buttons != prev_buttons:
+        if debounced_axes != prev_axes or buttons != prev_buttons:
             control_data = {
-                "type": "control",
-                "axes": axes,
-                "buttons": buttons
+            "type": "control",
+            "axes": debounced_axes,
+            "buttons": buttons
             }
             await ws.send(json.dumps(control_data))
-            prev_axes = axes
+            prev_axes = debounced_axes
             prev_buttons = buttons
 
         await asyncio.sleep(CONTROL_SEND_RATE)

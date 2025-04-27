@@ -6,6 +6,18 @@ import numpy as np
 import cv2
 import base64
 import json
+import time 
+import serial 
+
+
+ser = serial.Serial('COM5', 115200, timeout=1)
+time.sleep(2)
+
+def apply_acceleration(value, prev, max_speed=1000, accel_rate=30):
+    target = value * max_speed
+    delta = target - prev
+    delta = max(min(delta, accel_rate), -accel_rate)
+    return prev + delta
 
 async def handle_client(websocket, path):
     print("Client connected")
@@ -18,6 +30,16 @@ async def handle_client(websocket, path):
     pipeline.start(config)
 
     align = rs.align(rs.stream.color)
+
+    # Axis values
+    x_speed = 0
+    y_speed = 0
+    # Sensitivity (scale joystick differently for each axis if needed)
+    x_sensitivity = 0.5  # X-axis (e.g. pan)
+    y_sensitivity = 0.5  # Y-axis (e.g. tilt)
+
+    deadzone = 0.1  # Deadzone for joystick
+    fire = 0  # Fire flag
 
     try:
         while True:
@@ -53,13 +75,23 @@ async def handle_client(websocket, path):
                 data = json.loads(message)
                 if data.get("type") == "control":
 
-                    # data["axes"] = [float(x) for x in data["axes"]]
-                    # data["buttons"] = [int(x) for x in data["buttons"]]
-                    axe1= [data["axes"][0]]  # Keep only the first axis
-                    axe2= [data["axes"][1]]
+                    raw_x = -data["axes"][0]  # X-axis
+                    raw_y = -data["axes"][1]  # Y-axis
 
-                    # Handle controller data here (log or use)
-                    print(f"Controller input: {axe1}, {axe2}")
+                    raw_x = 0 if abs(raw_x) < deadzone else raw_x
+                    raw_y = 0 if abs(raw_y) < deadzone else raw_y
+
+                    # Apply deadzone
+                    x_speed = apply_acceleration(raw_x * x_sensitivity, x_speed)
+                    y_speed = apply_acceleration(raw_y * y_sensitivity, y_speed)
+
+                    # Scale and send to serial
+                    command = f"{x_speed},{y_speed},{int(fire)}\n"
+                    ser.write(command.encode('utf-8'))  # Send to serial
+                    print(f"X: {x_speed}, Y: {y_speed}, Fire: {fire}")
+
+                    
+                   
             except asyncio.TimeoutError:
                 pass  # No control data this frame — just skip
 
