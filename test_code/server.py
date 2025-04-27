@@ -10,8 +10,11 @@ import time
 import serial 
 
 
-ser = serial.Serial('COM5', 115200, timeout=1)
+#ser = serial.Serial('COM5', 115200, timeout=1)
+ser = serial.Serial('/dev/ttyACM0', 115200, timeout=1)  # Adjust the port as needed
 time.sleep(2)
+
+video = False
 
 def apply_acceleration(value, prev, max_speed=1000, accel_rate=30):
     target = value * max_speed
@@ -35,7 +38,7 @@ async def handle_client(websocket, path):
     x_speed = 0
     y_speed = 0
     # Sensitivity (scale joystick differently for each axis if needed)
-    x_sensitivity = 0.5  # X-axis (e.g. pan)
+    x_sensitivity = 1  # X-axis (e.g. pan)
     y_sensitivity = 0.5  # Y-axis (e.g. tilt)
 
     deadzone = 0.1  # Deadzone for joystick
@@ -43,31 +46,32 @@ async def handle_client(websocket, path):
 
     try:
         while True:
+            if video:
             # Get video frame from RealSense
-            frames = pipeline.wait_for_frames()
+                frames = pipeline.wait_for_frames()
 
-            align_frames = align.process(frames)  # Align depth to color
-            
-            color_frame = align_frames.get_color_frame()
-            depth_frame = align_frames.get_depth_frame()
+                align_frames = align.process(frames)  # Align depth to color
+                
+                color_frame = align_frames.get_color_frame()
+                depth_frame = align_frames.get_depth_frame()
 
-            if not color_frame or not depth_frame:
-                continue
+                if not color_frame or not depth_frame:
+                    continue
 
-            color_frame_np = np.asanyarray(color_frame.get_data())
-            _, jpeg_color = cv2.imencode('.jpg', color_frame_np)
-            b64_frame = base64.b64encode(jpeg_color.tobytes()).decode('utf-8')
+                color_frame_np = np.asanyarray(color_frame.get_data())
+                _, jpeg_color = cv2.imencode('.jpg', color_frame_np)
+                b64_frame = base64.b64encode(jpeg_color.tobytes()).decode('utf-8')
 
-            color_depth_frame_np = cv2.applyColorMap(cv2.convertScaleAbs(np.asanyarray(depth_frame.get_data()), alpha=0.03), cv2.COLORMAP_JET)
-            _, jpeg_depth = cv2.imencode('.jpg', color_depth_frame_np)
-            b64_depth = base64.b64encode(jpeg_depth.tobytes()).decode('utf-8')
+                color_depth_frame_np = cv2.applyColorMap(cv2.convertScaleAbs(np.asanyarray(depth_frame.get_data()), alpha=0.03), cv2.COLORMAP_JET)
+                _, jpeg_depth = cv2.imencode('.jpg', color_depth_frame_np)
+                b64_depth = base64.b64encode(jpeg_depth.tobytes()).decode('utf-8')
 
-            # Send both color and depth frames in a single message
-            await websocket.send(json.dumps({
-                "type": "frames",
-                "color": b64_frame,
-                "depth": b64_depth
-            }))
+                # Send both color and depth frames in a single message
+                await websocket.send(json.dumps({
+                    "type": "frames",
+                    "color": b64_frame,
+                    "depth": b64_depth
+                }))
 
             # Try to receive controller input with timeout
             try:
@@ -77,6 +81,7 @@ async def handle_client(websocket, path):
 
                     raw_x = -data["axes"][0]  # X-axis
                     raw_y = -data["axes"][1]  # Y-axis
+                    #print("Received controller input:", data)
 
                     raw_x = 0 if abs(raw_x) < deadzone else raw_x
                     raw_y = 0 if abs(raw_y) < deadzone else raw_y
