@@ -16,13 +16,50 @@ time.sleep(2)
 
 video = False
 
+
+class SharedData:
+    def __init__(self):
+        self.x_axe = 0
+        self.y_axe = 0
+        self.fire = 0
+
 def apply_acceleration(value, prev, max_speed=1000, accel_rate=30):
     target = value * max_speed
     delta = target - prev
     delta = max(min(delta, accel_rate), -accel_rate)
     return prev + delta
 
-async def handle_client(websocket, path):
+async def handle_arduino(shared_data: SharedData):
+    x_speed = 0
+    y_speed = 0
+    # Sensitivity (scale joystick differently for each axis if needed)
+    x_sensitivity = 1  # X-axis (e.g. pan)
+    y_sensitivity = 0.2  # Y-axis (e.g. tilt)
+
+    deadzone = 0.1  # Deadzone for joystick
+    fire = 0  # Fire flag
+
+    while True:
+        # Read shared data
+        raw_x = shared_data.x_axe
+        raw_y = shared_data.y_axe
+        fire = shared_data.fire
+        # Apply deadzone
+        raw_x = 0 if abs(raw_x) < deadzone else raw_x
+        raw_y = 0 if abs(raw_y) < deadzone else raw_y
+
+        # Apply deadzone
+        x_speed = apply_acceleration(raw_x * x_sensitivity, x_speed)
+        y_speed = apply_acceleration(raw_y * y_sensitivity, y_speed)
+
+        # Scale and send to serial
+        command = f"{x_speed},{y_speed},{int(fire)}\n"
+        ser.write(command.encode('utf-8'))  # Send to serial
+        #print(f"X: {x_speed}, Y: {y_speed}, Fire: {fire}")
+        await asyncio.sleep(0.002)
+
+
+async def handle_client(websocket, path, shared_data: SharedData):
     print("Client connected")
 
     # RealSense camera setup
@@ -30,19 +67,13 @@ async def handle_client(websocket, path):
     config = rs.config()
     config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
     config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+    #config.enable_stream(rs.stream.infrared, 640, 480, rs.format.y8, 30)
+    config.enable_stream(rs.stream.gyro)
+
     pipeline.start(config)
 
     align = rs.align(rs.stream.color)
 
-    # Axis values
-    x_speed = 0
-    y_speed = 0
-    # Sensitivity (scale joystick differently for each axis if needed)
-    x_sensitivity = 1  # X-axis (e.g. pan)
-    y_sensitivity = 0.5  # Y-axis (e.g. tilt)
-
-    deadzone = 0.1  # Deadzone for joystick
-    fire = 0  # Fire flag
 
     try:
         while True:
@@ -54,9 +85,11 @@ async def handle_client(websocket, path):
                 
                 color_frame = align_frames.get_color_frame()
                 depth_frame = align_frames.get_depth_frame()
+                infrared_frame = frames.get_infrared_frame()
 
                 if not color_frame or not depth_frame:
                     continue
+                
 
                 color_frame_np = np.asanyarray(color_frame.get_data())
                 _, jpeg_color = cv2.imencode('.jpg', color_frame_np)
@@ -72,34 +105,19 @@ async def handle_client(websocket, path):
                     "color": b64_frame,
                     "depth": b64_depth
                 }))
-
+                
             # Try to receive controller input with timeout
             try:
                 message = await asyncio.wait_for(websocket.recv(), timeout=0.001)
                 data = json.loads(message)
                 if data.get("type") == "control":
 
-                    raw_x = -data["axes"][0]  # X-axis
-                    raw_y = -data["axes"][1]  # Y-axis
-                    #print("Received controller input:", data)
-
-                    raw_x = 0 if abs(raw_x) < deadzone else raw_x
-                    raw_y = 0 if abs(raw_y) < deadzone else raw_y
-
-                    # Apply deadzone
-                    x_speed = apply_acceleration(raw_x * x_sensitivity, x_speed)
-                    y_speed = apply_acceleration(raw_y * y_sensitivity, y_speed)
-
-                    # Scale and send to serial
-                    command = f"{x_speed},{y_speed},{int(fire)}\n"
-                    ser.write(command.encode('utf-8'))  # Send to serial
-                    print(f"X: {x_speed}, Y: {y_speed}, Fire: {fire}")
-
-                    
-                   
+                    shared_data.x_axe = -data["axes"][0]  # X-axis
+                    shared_data.y_axe = -data["axes"][1]  # Y-axis
+                    shared_data.fire = data["buttons"][0]
             except asyncio.TimeoutError:
-                pass  # No control data this frame — just skip
-
+                # No message received, continue
+                pass
             await asyncio.sleep(0.01)  # 100 FPS max output rate (tweak as needed)
 
     except websockets.ConnectionClosed:
@@ -109,9 +127,19 @@ async def handle_client(websocket, path):
 
 # Start WebSocket server
 async def main():
-    print("Starting WebSocket server on ws://0.0.0.0:8765")
-    async with websockets.serve(handle_client, '0.0.0.0', 8765):
-        await asyncio.Future()  # Run forever
+
+    shared_data = SharedData()
+    # Start the Arduino handler
+    async def client_handler_wrapper(websocket, path):
+        await handle_client(websocket, path, shared_data)
+
+    server = await websockets.serve(client_handler_wrapper, '0.0.0.0', 8765)
+
+    await asyncio.gather(
+        handle_arduino(shared_data),
+        server.wait_closed()
+    )
+    print("WebSocket server started on port 8765")
 
 if __name__ == "__main__":
     asyncio.run(main())
