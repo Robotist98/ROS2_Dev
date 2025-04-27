@@ -20,24 +20,34 @@ async def send_controls(ws, joystick):
     while True:
         pygame.event.pump()
         
-        axes = [joystick.get_axis(i) for i in range(joystick.get_numaxes())]
+        axes = [round(joystick.get_axis(i), 2) for i in range(joystick.get_numaxes())] if joystick.get_numaxes() > 0 else []
         buttons = [joystick.get_button(i) for i in range(joystick.get_numbuttons())]
 
-        # Debounce axes to avoid sending small insignificant changes
-        debounced_axes = [
-            round(axis, 2) if abs(axis - prev_axes[i]) > 0.01 else prev_axes[i]
-            for i, axis in enumerate(axes)
+        # Check for changes in axes or buttons
+        axes_changed = [
+            (axes[i] != prev_axes[i] and not (axes[i] == 0 and prev_axes[i] == 0))
+            for i in range(len(axes))
         ]
+        buttons_changed = [buttons[i] != prev_buttons[i] for i in range(len(buttons))]
 
-        # Optionally send only when something changes (optional optimization)
-        if debounced_axes != prev_axes or buttons != prev_buttons:
+        if any(axes_changed) or any(buttons_changed):
             control_data = {
-            "type": "control",
-            "axes": debounced_axes,
-            "buttons": buttons
+                "type": "control",
+                "axes": axes,
+                "buttons": buttons
             }
-            await ws.send(json.dumps(control_data))
-            prev_axes = debounced_axes
+            try:
+                await ws.send(json.dumps(control_data))
+                print(f"Successfully sent control data: {control_data}")
+            except websockets.exceptions.ConnectionClosed as e:
+                print(f"WebSocket connection closed: {e}")
+                break
+            except Exception as e:
+                print(f"Error sending control data: {e}")
+                break
+
+            # Update previous states
+            prev_axes = axes
             prev_buttons = buttons
 
         await asyncio.sleep(CONTROL_SEND_RATE)
