@@ -78,27 +78,18 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             gamepad_data = json.loads(data)
+            #print("Received gamepad data:", gamepad_data)
             axes = gamepad_data.get("axes", [])
             buttons = gamepad_data.get("buttons", [])
             print("Axes:", axes)
+            #print("Buttons:", buttons)
             # Process your gamepad data here
     except Exception as e:
         print("WebSocket disconnected:", e)
 
-def get_local_ip():
-    """Get the local IP address of the machine."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # Connect to an external server to determine the local IP
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    finally:
-        s.close()
-    return ip
-
 if __name__ == "__main__":
-    host = "0.0.0.0"
-    port = 8000
-    ip_address = get_local_ip()
-    print(f"Server is running. Access it at: http://127.0.0.1:{port} or http://{ip_address}:{port}")
-    uvicorn.run(app, host=host, port=port)
+        host = "0.0.0.0"
+        port = 8000
+        ip_address = socket.gethostbyname(socket.gethostname())
+        print(f"Server is running. Access it at: http://127.0.0.1:{port} or http://{ip_address}:{port}")
+        uvicorn.run(app, host=host, port=port)
