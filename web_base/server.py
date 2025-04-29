@@ -66,6 +66,7 @@ html_content = """
 </html>
 """
 
+
 @app.get("/")
 async def get():
     return HTMLResponse(html_content)
@@ -87,9 +88,22 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print("WebSocket disconnected:", e)
 
+
+
 if __name__ == "__main__":
         host = "0.0.0.0"
         port = 8000
+        hostname = socket.gethostname()
         ip_address = socket.gethostbyname(socket.gethostname())
         print(f"Server is running. Access it at: http://127.0.0.1:{port} or http://{ip_address}:{port}")
+        print(f"Hostname: {hostname}")
         uvicorn.run(app, host=host, port=port)
+
+# if __name__ == "__main__":
+#         hostname = socket.gethostname()
+#         ip_address = socket.gethostbyname(hostname)
+#         host = ip_address  # Use the device's IP address
+#         port = 8000
+#         print(f"Server is running. Access it at: http://{ip_address}:{port}")
+#         print(f"Hostname: {hostname}")
+#         uvicorn.run(app, host=host, port=port)
